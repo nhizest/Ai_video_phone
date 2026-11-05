@@ -22,7 +22,7 @@ if api_key:
             try:
                 # BƯỚC 1: Dùng Gemini tạo lời thoại ngắn (Dưới 30 từ để xử lý nhanh)
                 text_response = client.models.generate_content(
-                    model='gemini-2.5-flash',
+                    model='gemini-1.5-flash',
                     contents=f"Viết 1 câu lời thoại ngắn (dưới 30 từ) bằng tiếng Việt cho chủ đề: {user_prompt}. Chỉ trả về câu lời thoại, không kèm theo chữ khác."
                 )
                 voice_text = text_response.text
