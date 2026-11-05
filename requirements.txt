@@ -1,4 +1,3 @@
 streamlit
-google-generativeai
-gTTS
-moviepy==1.0.3
+google-genai
+requests
