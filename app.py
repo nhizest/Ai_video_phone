@@ -53,21 +53,22 @@ if st.button("🚀 Bắt đầu tạo Video"):
 
             # --- BƯỚC 2: GỬI LỆNH SANG LUMA API ĐỂ TẠO VIDEO ---
             with st.spinner("🎥 2. Đang gửi yêu cầu và render Video (Có thể mất 1-2 phút)..."):
-                luma_url = "https://lumalabs.ai"  # Endpoint API chuẩn của Luma
+                luma_url = "https://lumalabs.ai"
                 headers = {
                     "Authorization": f"Bearer {luma_key}",
                     "Content-Type": "application/json"
                 }
                 payload = {
                     "prompt": optimized_prompt,
-                    "aspect_ratio": "16:9",  # Có thể đổi thành "9:16" nếu muốn làm video ngắn TikTok/Shorts
+                    "aspect_ratio": "16:9",
                     "loop": False
                 }
                 
                 # Gọi API tạo lệnh sinh video
                 post_response = requests.post(luma_url, headers=headers, json=payload)
                 
-                if post_response.status_code in:
+                # SỬA LỖI TẠI ĐÂY: Kiểm tra mã phản hồi thành công (201 Created) đúng cú pháp
+                if post_response.status_code == 201:
                     generation_data = post_response.json()
                     task_id = generation_data.get("id")
                     
@@ -93,14 +94,13 @@ if st.button("🚀 Bắt đầu tạo Video"):
                             st.error(f"Lỗi render video từ phía hệ thống Luma AI: {result.get('failure_reason')}")
                             break
                         else:
-                            # Trạng thái đang xử lý (queued / processing)
+                            # Trạng thái đang xử lý (queued / processing / dreaming)
                             status_placeholder.text(f"⏳ Trạng thái: {state.upper()}... Đang xử lý khung hình...")
                             # Giả lập thanh tiến trình tăng dần
                             progress_bar.progress(min(percent_complete * 2, 95))
-                            time.sleep(4)  # Đợi 4 giây trước khi kiểm tra lại (tránh bị spam API rate limit)
+                            time.sleep(4)  # Đợi 4 giây trước khi kiểm tra lại
                 else:
                     st.error(f"Không thể kết nối API Luma. Mã lỗi: {post_response.status_code} - {post_response.text}")
 
         except Exception as e:
             st.error(f"Có lỗi hệ thống phát sinh: {e}")
-            
