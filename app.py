@@ -1,77 +1,106 @@
 import streamlit as st
-import google.generativeai as genai
-from gtts import gTTS
-from moviepy.editor import ImageClip, AudioFileClip
-import os
+from google import genai
+from google.genai import types
+import requests
+import time
 
-# 1. Cấu hình giao diện hiển thị trên điện thoại
-st.set_page_config(page_title="AI Video Generator", layout="centered")
-st.title("📱 Trình Tạo Video AI Bằng Câu Lệnh")
+# --- CẤU HÌNH GIAO DIỆN STREAMLIT ---
+st.set_page_config(page_title="Trình Tạo Video AI Hoàn Chỉnh", page_icon="🎬", layout="centered")
+st.title("🎬 Trình Tạo Video AI Bằng Câu Lệnh")
+st.write("Ứng dụng tự động viết kịch bản bằng Gemini 2.5 và sinh video thông qua Luma API.")
 
-# Nhập API Key bảo mật
-api_key = st.text_input("Nhập Google Gemini API Key:", type="password")
+# --- KHU VỰC CÀI ĐẶT API KEYS ---
+with st.sidebar:
+    st.header("🔑 Cấu hình API Key")
+    gemini_key = st.text_input("1. Nhập Google Gemini API Key:", type="password")
+    luma_key = st.text_input("2. Nhập Luma AI API Key:", type="password", help="Lấy tại bảng điều khiển tài khoản Luma Dream Machine API")
+    st.markdown("[Lấy Gemini Key miễn phí tại Google AI Studio](https://google.com)")
 
-if api_key:
-    # Cấu hình API cũ nhưng cực kỳ ổn định
-    genai.configure(api_key=api_key)
-    
-    # Ô nhập câu lệnh (Prompt)
-    user_prompt = st.text_area("Bạn muốn làm video về chủ đề gì?", "Kể một câu chuyện ngắn về chú mèo bay vào vũ trụ")
+# --- GIAO DIỆN CHÍNH ---
+prompt_input = st.text_area(
+    "Bạn muốn làm video về chủ đề gì? (Nhập tiếng Việt thoải mái):",
+    placeholder="Kể một câu chuyện ngắn về chú mèo phi hành gia bay vào vũ trụ..."
+)
 
-    if st.button("🚀 Bắt đầu tạo Video"):
-        with st.spinner("AI đang xử lý... Vui lòng đợi trong giây lát!"):
-            try:
-                # BƯỚC 1: Sử dụng mô hình quốc dân gemini-pro để tạo lời thoại
-                model = genai.GenerativeModel('gemini-pro')
-                text_response = model.generate_content(
-                    f"Viết 1 câu lời thoại ngắn (dưới 20 từ) bằng tiếng Việt cho chủ đề: {user_prompt}. Chỉ trả về câu lời thoại, không kèm theo chữ khác."
+# --- XỬ LÝ KHI BẤM NÚT TẠO VIDEO ---
+if st.button("🚀 Bắt đầu tạo Video"):
+    if not gemini_key or not luma_key:
+        st.error("Vui lòng điền đầy đủ cả 2 API Key ở thanh bên (Sidebar)!")
+    elif not prompt_input:
+        st.warning("Vui lòng nhập ý tưởng/chủ đề cho video!")
+    else:
+        try:
+            # --- BƯỚC 1: DÙNG GEMINI THẾ HỆ MỚI ĐỂ TỐI ƯU PROMPT TIẾNG ANH ---
+            with st.spinner("🧠 1. Gemini đang tối ưu hóa ý tưởng thành Prompt video chuyên nghiệp..."):
+                # Khởi tạo client theo SDK `google-genai` mới nhất
+                client = genai.Client(api_key=gemini_key)
+                
+                system_prompt = (
+                    f"Dựa vào ý tưởng này: '{prompt_input}', hãy viết một đoạn prompt ngắn (khoảng 30-50 từ) bằng tiếng Anh "
+                    f"để đưa vào AI tạo video (như Luma/Runway). Prompt cần tập trung vào mô tả bối cảnh, hành động nhân vật, "
+                    f"góc máy (cinematic, 4k, hyper-realistic, v.v.). CHỈ TRẢ VỀ ĐOẠN PROMPT TIẾNG ANH, không giải thích gì thêm."
                 )
-                voice_text = text_response.text
-                st.write(f"📝 **Lời thoại AI:** {voice_text}")
-
-                # BƯỚC 2: Chuyển văn bản thành giọng đọc
-                tts = gTTS(text=voice_text, lang='vi')
-                audio_path = "voice.mp3"
-                tts.save(audio_path)
-
-                # BƯỚC 3: Tạo hình ảnh minh họa sạch
-                # Vì Imagen API yêu cầu tài khoản trả phí, ta dùng một ảnh mặc định chất lượng cao 9:16 để đảm bảo code render luôn thành công
-                image_path = "background.jpg"
-                if not os.path.exists(image_path):
-                    import requests
-                    # Tải một ảnh nền vũ trụ tuyệt đẹp tỷ lệ dọc dọc chuẩn TikTok
-                    img_url = "https://unsplash.com"
-                    img_data = requests.get(img_url).content
-                    with open(image_path, 'wb') as handler:
-                        handler.write(img_data)
-
-                # BƯỚC 4: Dùng MoviePy ghép âm thanh vào ảnh
-                audio_clip = AudioFileClip(audio_path)
-                video_clip = ImageClip(image_path).set_duration(audio_clip.duration)
-                video_clip = video_clip.set_audio(audio_clip)
                 
-                output_video_path = "final_ai_video.mp4"
-                video_clip.write_videofile(output_video_path, fps=24, codec="libx264", audio_codec="aac")
-
-                # BƯỚC 5: Hiển thị video kết quả
-                st.success("🎉 Video của bạn đã sẵn sàng!")
-                st.video(output_video_path)
+                # Sử dụng mô hình đời mới gemini-2.5-flash cực nhanh
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=system_prompt,
+                )
+                optimized_prompt = response.text.strip()
                 
-                # Nút bấm tải về máy
-                with open(output_video_path, "rb") as file:
-                    st.download_button(
-                        label="📥 Tải video về điện thoại",
-                        data=file,
-                        file_name="ai_video.mp4",
-                        mime="video/mp4"
-                    )
+                st.success("Tối ưu prompt thành công!")
+                st.info(f"**Prompt tiếng Anh gửi sang AI Video:** {optimized_prompt}")
 
-                # Dọn dẹp bộ nhớ tạm
-                audio_clip.close()
-                video_clip.close()
-                os.remove(audio_path)
+            # --- BƯỚC 2: GỬI LỆNH SANG LUMA API ĐỂ TẠO VIDEO ---
+            with st.spinner("🎥 2. Đang gửi yêu cầu và render Video (Có thể mất 1-2 phút)..."):
+                luma_url = "https://lumalabs.ai"  # Endpoint API chuẩn của Luma
+                headers = {
+                    "Authorization": f"Bearer {luma_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "prompt": optimized_prompt,
+                    "aspect_ratio": "16:9",  # Có thể đổi thành "9:16" nếu muốn làm video ngắn TikTok/Shorts
+                    "loop": False
+                }
+                
+                # Gọi API tạo lệnh sinh video
+                post_response = requests.post(luma_url, headers=headers, json=payload)
+                
+                if post_response.status_code in:
+                    generation_data = post_response.json()
+                    task_id = generation_data.get("id")
+                    
+                    # --- BƯỚC 3: KIỂM TRA TRẠNG THÁI RENDER (POLLING) ---
+                    status_url = f"https://lumalabs.ai/{task_id}"
+                    
+                    status_placeholder = st.empty()
+                    progress_bar = st.progress(0)
+                    
+                    for percent_complete in range(1, 101):
+                        get_response = requests.get(status_url, headers=headers)
+                        result = get_response.json()
+                        state = result.get("state")
+                        
+                        if state == "completed":
+                            video_url = result.get("assets", {}).get("video")
+                            progress_bar.progress(100)
+                            status_placeholder.success("🎉 Video đã tạo xong!")
+                            # Hiển thị video trực tiếp trên giao diện Streamlit để người dùng xem và tải về
+                            st.video(video_url)
+                            break
+                        elif state == "failed":
+                            st.error(f"Lỗi render video từ phía hệ thống Luma AI: {result.get('failure_reason')}")
+                            break
+                        else:
+                            # Trạng thái đang xử lý (queued / processing)
+                            status_placeholder.text(f"⏳ Trạng thái: {state.upper()}... Đang xử lý khung hình...")
+                            # Giả lập thanh tiến trình tăng dần
+                            progress_bar.progress(min(percent_complete * 2, 95))
+                            time.sleep(4)  # Đợi 4 giây trước khi kiểm tra lại (tránh bị spam API rate limit)
+                else:
+                    st.error(f"Không thể kết nối API Luma. Mã lỗi: {post_response.status_code} - {post_response.text}")
 
-            except Exception as e:
-                st.error(f"Có lỗi xảy ra: {e}")
-else:
-    st.info("Vui lòng nhập API Key để kích hoạt phần mềm.")
+        except Exception as e:
+            st.error(f"Có lỗi hệ thống phát sinh: {e}")
+            
