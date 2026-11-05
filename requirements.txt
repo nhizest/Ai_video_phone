@@ -1,4 +1,4 @@
 streamlit
 google-genai
 gTTS
-moviepy
+moviepy==1.0.3
